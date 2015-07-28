@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+# usage: blast2embalmedTaxa blastoutput.txt query.fna ref.fna taxmap ncores
+
+base=`basename $1 .txt`
+
+echo "Running embalmer on blast hits"
+/project/flatiron/dan/riboseaume/src/bin/taxonID2embalmedID $1 $2 $3 $5
+
+# output of embalmer will be in ${base}-ref-seq-embalm.txt
+echo "Converting embalmer output to taxon tables"
+/project/flatiron/dan/riboseaume/src/bin/embalm2taxonID ${base}-ref-seq-embalm.txt $4 ${base}-embalmer-hits.txt ${base}-embalmer-taxa-abundance.txt

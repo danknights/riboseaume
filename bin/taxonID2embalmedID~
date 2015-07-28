@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+# USAGE:
+# taxonID2embalmedID taxonIDfile.txt query.fasta refdb.fasta ncores
+
+base=`basename $1 .txt`
+cut -f 2 $1 > ${base}-ref-seq-ids.txt
+
+echo "Extracting reference hits from full reference fasta..."
+grep -A 1 -f ${base}-ref-seq-ids.txt $3 | grep -v '\-\-' > ${base}-ref-seqs.fna
+
+echo "Running Embalmer..."
+embalm ${base}-ref-seqs.fna $2 ${base}-ref-seq-embalm.txt --multiX .15 $4
