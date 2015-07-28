@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-# usage usearch2taxa usearchout.txt taxonmap output.txt
+# usage usearch2taxa usearchout.txt (usearchout-r2.txt) taxonmap output.txt
 # expects usearch blast6 output
+#
+#  
 # if ref ID has an underscore, only takes the part before the underscore
 #
 # taxonmap is formatted like the greengenes taxonomy maps: "Refseqid\tTaxonomy"
@@ -8,7 +10,7 @@
 # 
 import sys
 
-# given two lists of taxonomic hierarchies,
+# given two tuples that are taxonomic hierarchies,
 # returns the deepest shared hierarchy
 # or None if no intersection
 def lca(tax1, tax2):
@@ -21,11 +23,31 @@ def lca(tax1, tax2):
         i -= 1
     return None
 
+# given two lists of tuples that are taxonomic hierarchies,
+# returns the set that are shared
+# or None if no intersection
+def commonTaxa(refIDs1, refIDs2, taxon_map):
+    if refIDs1 is None or refIDs2 is None:
+        return None
+
+	# loop through readh list
+	taxa1 = set([taxon_map[refID] for refID in refIDs1])
+	taxa2 = set([taxon_map[refID] for refID in refIDs2])
+
+    return taxa1.intersection(taxa2)
+
 if __name__ == "__main__":
 
+	paired = False
     usearch_fp = sys.argv[1]
-    taxon_fp = sys.argv[2]
-    out_fp = sys.argv[3]
+    if len(sys.argv) == 5:
+    	paired = True
+	    usearch2_fp = sys.argv[2]
+	    taxon_fp = sys.argv[3]
+    	out_fp = sys.argv[4]
+    else:
+	    taxon_fp = sys.argv[2]
+    	out_fp = sys.argv[3]
 
     species_only = False
 
@@ -36,34 +58,61 @@ if __name__ == "__main__":
     taxa = {}
     for line in open(taxon_fp,'r'):
         words = line.strip().split('\t')
-        taxonomy = words[1].split(';')
+        taxonomy = tuple(words[1].split(';'))
         if len(taxonomy) == 1:
             species_only = True
-            taxonomy = taxonomy[0].split(' ')
+            taxonomy = tuple(taxonomy[0].split(' '))
         taxa[words[0]] = taxonomy
 
-    # parse one input seq at a time
-    taxon_assignments = {}
+    # load all assignments
+    refIDs1 = {} # will hold sets of refIDs for each query
+    refIDs2 = {} # will hold sets of refIDs for each query
+    taxon_assignments = {} # will hold sets of taxon tuples for each query
 
-    print "Determining consensus taxonomy assignments..."
-    count = 1
-    for line in open(usearch_fp,'r'):
-        if count % 1000000 == 0:
-            print count
-        count += 1
+    print "Loading taxonomy assignments..."
+    for line in open(usearch_fp,'r'):	    	
         words = line.strip().split('\t')
         query_id = words[0]
         ref_id = words[1].split('_')[0]
-        if not taxa.has_key(ref_id):
-            ref_ids_missing_from_taxonomy += 1
-        else:
-            tax = taxa[ref_id]
+        if not refIDs1.has_key(query_id):
+        	refIDs1[query_id] = set()
+        refIDs1[query_id].add(ref_id)
 
-            if not taxon_assignments.has_key(query_id):
-                taxon_assignments[query_id] = tax
-            else:
-                intersection = lca(taxon_assignments[query_id], tax)
-                taxon_assignments[query_id] = intersection
+	if paired:
+	    for line in open(usearch2_fp,'r'):	    	
+    	    words = line.strip().split('\t')
+        	query_id = words[0]
+	        ref_id = words[1].split('_')[0]
+	        if not refIDs2.has_key(query_id):
+    	    	refIDs2[query_id] = set()
+        	refIDs2[query_id].add(ref_id)
+
+		# for each query_id, keep only the intersection 
+		# of its R1 and R2 taxonomy assignments
+		# if a query didn't have hits in both R1 and R2, throw it out
+    	print "Finding R2 intersection and taxonomy assignments..."
+		for key in refIDs1:
+			if refIDs2.has_key(key):
+				taxon_assignments[key] = commonTaxa(refIDs1[key], refIDs2[key], taxa)
+	else:
+    	print "Converting refIDs to taxonomy assignments..."
+		for key in refIDs1:
+			taxon_assignments[key] = set([taxa[refID] for refID in refIDs1])
+
+	print "Determining consensus taxonomy assignments..."
+	count = 1
+
+	for key in taxon_assignments:
+        if count % 1000000 == 0:
+            print count
+        count += 1
+
+		taxa_set = taxon_assignments[key]
+		taxon = taxa_set.pop()
+		if len(taxa_set) > 0:
+			for taxon2 in taxa_set:
+				taxon = lca(taxon, taxon2)
+         taxon_assignments[key] = taxon
 
     # tabulate taxon counts
     print count, "hits processed. Tabulating taxa..."
