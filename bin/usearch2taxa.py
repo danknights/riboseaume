@@ -34,7 +34,10 @@ def commonTaxa(refIDs1, refIDs2, taxon_map):
     taxa1 = set([taxon_map[refID] for refID in refIDs1])
     taxa2 = set([taxon_map[refID] for refID in refIDs2])
 
-    return taxa1.intersection(taxa2)
+    common = taxa1.intersection(taxa2)
+    if len(common) == 0:
+       return None
+    return common
 
 if __name__ == "__main__":
 
@@ -59,7 +62,7 @@ if __name__ == "__main__":
     for line in open(taxon_fp,'r'):
         words = line.strip().split('\t')
         taxonomy = tuple(words[1].split(';'))
-        if len(taxonomy) == 1:
+        if len(taxonomy) == 1 and words[1] != 'Archaea' and words[1] != 'Eukaryota':
             species_only = True
             taxonomy = tuple(taxonomy[0].split(' '))
         taxa[words[0]] = taxonomy
@@ -90,14 +93,17 @@ if __name__ == "__main__":
         # for each query_id, keep only the intersection 
         # of its R1 and R2 taxonomy assignments
         # if a query didn't have hits in both R1 and R2, throw it out
+        print len(refIDs1), len(refIDs2)
         print "Finding R2 intersection and taxonomy assignments..."
         for key in refIDs1:
             if refIDs2.has_key(key):
-                taxon_assignments[key] = commonTaxa(refIDs1[key], refIDs2[key], taxa)
+                common = commonTaxa(refIDs1[key], refIDs2[key], taxa)
+                if common is not None:
+                    taxon_assignments[key] = common
     else:
         print "Converting refIDs to taxonomy assignments..."
         for key in refIDs1:
-            taxon_assignments[key] = set([taxa[refID] for refID in refIDs1])
+            taxon_assignments[key] = set([taxa[refID] for refID in refIDs1[key]])
 
     print "Determining consensus taxonomy assignments..."
     count = 1
@@ -112,7 +118,7 @@ if __name__ == "__main__":
         if len(taxa_set) > 0:
             for taxon2 in taxa_set:
                 taxon = lca(taxon, taxon2)
-         taxon_assignments[key] = taxon
+        taxon_assignments[key] = taxon
 
     # tabulate taxon counts
     print count, "hits processed. Tabulating taxa..."
